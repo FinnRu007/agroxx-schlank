@@ -28,13 +28,32 @@
     document.querySelectorAll('.pfeil').forEach((b) => b.addEventListener('click', () => { zeige(i + Number(b.dataset.richtung)); starte(); }));
     punkte.forEach((p, k) => p.addEventListener('click', () => { zeige(k); starte(); }));
     pause.textContent = laeuft ? 'Pause' : 'Weiter';
-    pause.addEventListener('click', () => { laeuft = !laeuft; pause.textContent = laeuft ? 'Pause' : 'Weiter'; starte(); });
+    const hero = document.querySelector('.hero');
+    hero.classList.toggle('pausiert', !laeuft);
+    pause.addEventListener('click', () => { laeuft = !laeuft; pause.textContent = laeuft ? 'Pause' : 'Weiter'; hero.classList.toggle('pausiert', !laeuft); starte(); });
     document.addEventListener('visibilitychange', () => (document.hidden ? clearInterval(timer) : starte()));
     let x0 = null;
-    const hero = document.querySelector('.hero');
     hero.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
     hero.addEventListener('touchend', (e) => { if (x0 !== null) { const d = e.changedTouches[0].clientX - x0; if (Math.abs(d) > 50) { zeige(i + (d < 0 ? 1 : -1)); starte(); } x0 = null; } });
     starte();
+  }
+
+  // Einblenden beim Scrollen und leichter Parallax-Effekt bei den Vollbild-Trennern
+  const bewegt = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (bewegt && 'IntersectionObserver' in window) {
+    document.documentElement.classList.add('js');
+    const io = new IntersectionObserver((eintraege) => eintraege.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('da'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('.kachel, .schwer-grid > *, .bg-text, .mosaik a, .punkte-liste > div, .zahlenband li, .untergruppe, .abschnitt > .wrap > h2, .abschnitt .gross, .videos video, .vollbild-text').forEach((el, k) => { el.classList.add('r'); el.style.transitionDelay = (k % 4) * 70 + 'ms'; io.observe(el); });
+    const trenner = [...document.querySelectorAll('.vollbild')];
+    if (trenner.length) {
+      let wartet = false;
+      const lauf = () => {
+        wartet = false;
+        trenner.forEach((t) => { const r = t.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return; const mitte = (r.top + r.height / 2 - innerHeight / 2) / innerHeight; t.firstElementChild.style.transform = 'translateY(' + (mitte * -9).toFixed(2) + '%)'; });
+      };
+      addEventListener('scroll', () => { if (!wartet) { wartet = true; requestAnimationFrame(lauf); } }, { passive: true });
+      lauf();
+    }
   }
 
   // Klick auf ein Foto der Galerie: große Ansicht

@@ -16,16 +16,42 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const bilderOrdner = path.join(WURZEL, 'bilder');
 fs.mkdirSync(bilderOrdner, { recursive: true });
 const benutzt = new Map(); // name -> Breite
+const grosse = new Set(); // Fotos für die Vollbildansicht (bilder/gross/, 1800 px)
+fs.mkdirSync(path.join(bilderOrdner, 'gross'), { recursive: true });
 function foto(name, breite = 1280) {
   const n = name.replace(/\.jpg$/, '');
   benutzt.set(n, Math.max(benutzt.get(n) || 0, breite));
   return `bilder/${n}.jpg`;
 }
+function gross(name) {
+  const n = name.replace(/\.jpg$/, '');
+  grosse.add(n);
+  return `bilder/gross/${n}.jpg`;
+}
+const quellePfad = (n) => (n.startsWith('IMG_') ? eigeneFotos.get(n) : path.join(QUELLE, 'bilder/original', `${n}.jpg`));
+// Eigene Fotos von Thomas (entpackte Mail-Anhänge, IMG_xxxx.JPG) liegen in ../rohmaterial/<Ordner>/
+const EIGENE = path.resolve(WURZEL, '../rohmaterial');
+const eigeneFotos = new Map();
+if (fs.existsSync(EIGENE)) {
+  for (const f of fs.readdirSync(EIGENE, { recursive: true })) {
+    if (/\.jpe?g$/i.test(f)) { const id = path.basename(f).replace(/\.jpe?g$/i, ''); if (!eigeneFotos.has(id)) eigeneFotos.set(id, path.join(EIGENE, f)); }
+  }
+}
 async function bilderErzeugen() {
-  for (const [n, b] of benutzt) {
-    const ziel = path.join(bilderOrdner, `${n}.jpg`);
-    if (fs.existsSync(ziel)) continue;
-    await sharp(path.join(QUELLE, 'bilder/original', `${n}.jpg`)).rotate().resize({ width: b, withoutEnlargement: true }).jpeg({ quality: 78, mozjpeg: true }).toFile(ziel);
+  const sollen = new Set();
+  const erzeuge = async (n, b, ziel) => {
+    sollen.add(path.resolve(ziel));
+    const quelle = quellePfad(n);
+    if (!quelle || !fs.existsSync(quelle)) throw new Error(`Foto fehlt: ${n}`);
+    // vorhandene Datei nur behalten, wenn sie schon breit genug ist
+    if (fs.existsSync(ziel) && (await sharp(ziel).metadata()).width >= Math.min(b, (await sharp(quelle).metadata()).width)) return;
+    await sharp(quelle).rotate().resize({ width: b, withoutEnlargement: true }).jpeg({ quality: 78, mozjpeg: true }).toFile(ziel);
+  };
+  for (const [n, b] of benutzt) await erzeuge(n, b, path.join(bilderOrdner, `${n}.jpg`));
+  for (const n of grosse) await erzeuge(n, 1800, path.join(bilderOrdner, 'gross', `${n}.jpg`));
+  // nicht mehr benutzte Fotos aufräumen
+  for (const dir of [bilderOrdner, path.join(bilderOrdner, 'gross')]) {
+    for (const f of fs.readdirSync(dir)) { const p = path.resolve(dir, f); if (fs.statSync(p).isFile() && !sollen.has(p)) fs.unlinkSync(p); }
   }
 }
 
@@ -49,7 +75,14 @@ const SEITEN = [
   {
     datei: 'grubber.html', nav: 'TRIPLE-X', titel: 'TRIPLE-X Mulchgrubber', kicker: 'Mulchgrubber',
     kurz: 'Der Premium-Mulchgrubber für intensive Mischarbeit.',
-    hero: '8870254-65368714',
+    hero: 'IMG_6063',
+    trenner: ['IMG_6091', 'Dreibalkengerät. Kräftiger Rahmen. Saubere Arbeit.'],
+    bildgruppen: [
+      ['TRIPLE-X Serie', 'Die TRIPLE-X Mulchgrubber der agroXX-Linie: kräftiger Rahmen, TOPMIX-Schare und Nachläufer.', ['IMG_6063', 'IMG_6052', 'IMG_6071', 'IMG_6072', 'IMG_6073', 'IMG_6085', 'IMG_6087', 'IMG_6096']],
+      ['TRIPLE-X kleinere Version', 'Auch als kleinere Variante der Maschine erhältlich.', ['IMG_4072', 'IMG_4074', 'IMG_4086', 'IMG_4088', 'IMG_4099', 'IMG_4101']],
+      ['Details', 'Zinken, Schare, Randscheiben und Anbaubock aus der Nähe.', ['IMG_4084', 'IMG_4090', 'IMG_4093', 'IMG_4095', 'IMG_4076']],
+    ],
+    werkzeuge: ['Verschiedene Werkzeuge wählbar', 'Für den TRIPLE-X sind verschiedene Scharspitzen als Werkzeuge verfügbar und wählbar.', ['IMG_4618', 'IMG_4619', 'IMG_4620', 'IMG_4626', 'IMG_4627', 'IMG_4631']],
     lead: 'Intensive Mischarbeit, sauberes Strohmanagement und zügiges Auslaufen von Ausfallgetreide: Der TRIPLE-X ist ein Dreibalkengerät mit kräftigem Rahmen und durchdachtem Zinken- und Scharsystem, für Schlepper von 140 bis 300 PS.',
     zahlen: [['3,0–4,8 m', 'Arbeitsbreite'], ['bis 30 cm', 'Arbeitstiefe'], ['140–300 PS', 'Schlepperleistung'], ['S355', 'Feinkornstahl-Rahmen']],
     punkte: [
@@ -67,7 +100,13 @@ const SEITEN = [
   {
     datei: 'kurzscheibeneggen.html', nav: 'AVATERRA', titel: 'AVATERRA Kurzscheibeneggen', kicker: 'Kurzscheibeneggen',
     kurz: 'Gezackte Scheiben, Walze nach Wahl, klappbar mit Beleuchtung.',
-    hero: '8335292-57833131',
+    hero: 'IMG_5759',
+    trenner: ['IMG_5684', 'Flach arbeiten. Gleichmäßig einmischen. Klappbar zum Feld.'],
+    bildgruppen: [
+      ['AVATERRA Kurzscheibenegge', 'Gezackte Hohlscheiben und Dachringwalze, klappbar und beleuchtet für die Straßenfahrt.', ['IMG_5759', 'IMG_5636', 'IMG_5666', 'IMG_5667', 'IMG_5668', 'IMG_5670', 'IMG_5704', 'IMG_5756', 'IMG_5767']],
+      ['AVATERRA mit Fahrwerk', 'Die Ausführung mit Fahrwerk.', ['IMG_3234', 'IMG_3193', 'IMG_3240', 'IMG_3248', 'IMG_3271', 'IMG_3276', 'IMG_3294', 'IMG_3296']],
+      ['Details', 'Randscheibe, Scheibenlagerung, Dreipunktbock und Walze.', ['IMG_5646', 'IMG_5651', 'IMG_5738', 'IMG_5744', 'IMG_5673', 'IMG_5781']],
+    ],
     lead: 'Die AVATERRA arbeitet Stoppeln und Zwischenfrüchte flach und gleichmäßig ein. Gezackte Hohlscheiben, wahlweise Dachring- oder Krumenpackerwalze und eine klappbare Bauweise machen sie zum Allrounder für große Flächen.',
     zahlen: [['4,5–5,0 m', 'Arbeitsbreite'], ['Ø 560 mm', 'gezackte Scheiben'], ['5 Jahre', 'Garantie Scheibenlagerung']],
     punkte: [
@@ -82,7 +121,13 @@ const SEITEN = [
   {
     datei: 'tiefenlockerer.html', nav: 'NITRO-X', titel: 'NITRO-X Tiefenlockerer', kicker: 'Tiefenlockerer',
     kurz: 'Bodenlockerung bis 55 cm Tiefe, mit Steinsicherung.',
-    hero: '8876326-65446967',
+    hero: 'IMG_4398',
+    trenner: ['IMG_4433', 'Verdichtungen aufbrechen, wo sie entstehen.'],
+    bildgruppen: [
+      ['NITRO-X 6,0 m, die große Serie', 'Die große NITRO-X Tiefenlockerer Serie mit Stützrädern, klappbar und beleuchtet.', ['IMG_4398', 'IMG_4400', 'IMG_4401', 'IMG_4402', 'IMG_4403', 'IMG_4407', 'IMG_4433', 'IMG_4446', 'IMG_4456']],
+      ['NITRO-X weitere Ausführungen', 'Weitere Bilder der NITRO-X Serie mit den verschiedenen Scharsystemen.', ['IMG_8542', 'IMG_8546', 'IMG_8553', 'IMG_8575', 'IMG_8572', 'IMG_8506', 'IMG_8517', 'IMG_8520']],
+      ['Details', 'Schare, Scharspitzen, Steinsicherung und Hubwerk im Detail.', ['IMG_8549', 'IMG_8557', 'IMG_8558', 'IMG_8508', 'IMG_8562', 'IMG_8564', 'IMG_8566', 'IMG_4415']],
+    ],
     lead: 'Der NITRO-X bricht Verdichtungen auf, wo sie entstehen: bis in große Tiefen, mit Steinsicherung und hydraulischem Hubwerk. Erhältlich als PARAPLOW-HD und mit Flachscharsystem.',
     zahlen: [['bis 55 cm', 'Arbeitstiefe'], ['3,0–6,0 m', 'Arbeitsbreite'], ['4000 kg', 'hydraulisches Hubwerk']],
     punkte: [
@@ -95,22 +140,49 @@ const SEITEN = [
     videos: 'tiefenlockerer',
   },
   {
-    datei: 'walzen.html', nav: 'Quivogne Walzen', titel: 'Quivogne Cambridge-Walzen', kicker: 'Walzenprogramm',
-    kurz: 'Cambridgewalzen, Frontpacker und Messerwalzen.',
-    hero: '8428162-59086186',
-    lead: 'Rückverfestigung, Strohzerkleinerung, Saatbettbereitung: Quivogne-Cambridgewalzen mit Pendelausgleich, agroXX-Frontpacker mit Lenkbock und Messerwalzen für die Strohbearbeitung.',
+    datei: 'walzen.html', nav: 'Quivogne', titel: 'Quivogne Cambridge-Walzen', kicker: 'Walzenprogramm',
+    kurz: 'Cambridgewalzen mit Pendelausgleich und Messerwalzen.',
+    hero: 'IMG_7094',
+    trenner: ['IMG_7121', 'Rückverfestigen. Saatbett bereiten. Flächenleistung.'],
+    bildgruppen: [
+      ['Quivogne Cambridge-Walzenprogramm', 'Die Quivogne-Cambridgewalzen im Feld: klappbar, mit Beleuchtung und Pendelausgleich.', ['IMG_7094', 'IMG_7066', 'IMG_7071', 'IMG_7076', 'IMG_7121', 'IMG_7124']],
+      ['Weitere Ansichten', 'ROLLMAX und ROLLFIRST in verschiedenen Arbeitsbreiten.', ['8428162-59086186', '8428162-59086182', '8428162-59086179', '8428162-59086176', '8428162-59086177', '8428162-59086175']],
+    ],
+    lead: 'Rückverfestigung, Strohzerkleinerung, Saatbettbereitung: Quivogne-Cambridgewalzen mit Pendelausgleich und Messerwalzen für die Strohbearbeitung. Die Frontanbau-Walzen von agroXX finden Sie unter Frontanbau.',
     zahlen: [['bis 9,50 m', 'Arbeitsbreite'], ['Ø 520–620 mm', 'Ringe'], ['klappbar', 'mit Beleuchtung']],
     punkte: [
       ['ROLLMAX', 'Quivogne-Cambridgewalze mit 620-mm-Ringen und Pendelausgleich'],
       ['ROLLFIRST', 'Quivogne-Cambridgewalze mit 520-mm-Ringen und XL-Bereifung'],
-      ['Frontpacker', 'agroXX MAXXIMUS mit Lenkbock und 525-mm-Ringen'],
+      ['Messerwalze', 'SlashCut für die Strohbearbeitung'],
     ],
     galerie: ['8428162-59086182', '8428162-59086179', '8428162-59086176', '8428162-59086177', '8428162-59086175', '8428162-59086183', '8428162-59086188', '8428162-59086172'],
-    gruppen: [['ROLLMAX', 'Cambridgewalze mit 620-mm-Ringen und Pendelausgleich, 8,30 und 9,50 m.', /ROLLMAX/i], ['ROLLFIRST', 'Cambridgewalze mit 520-mm-Ringen und XL-Bereifung, 8,20 m.', /ROLLFIRST/i], ['Frontpacker und Messerwalze', 'agroXX MAXXIMUS, FRONTPACKER und SlashCut für Front- und Strohbearbeitung.', /MAXXIMUS|FRONTPACKER|Frontpacker|SlashCut|Messer/i]], tabelleFilter: 'Walzen & Packer',
+    gruppen: [['ROLLMAX', 'Cambridgewalze mit 620-mm-Ringen und Pendelausgleich, 8,30 und 9,50 m.', /ROLLMAX/i], ['ROLLFIRST', 'Cambridgewalze mit 520-mm-Ringen und XL-Bereifung, 8,20 m.', /ROLLFIRST/i], ['Messerwalze', 'SlashCut für die Strohbearbeitung.', /SlashCut|Messer/i]], tabelleFilter: 'Walzen & Packer',
     videos: 'walzen',
   },
   {
+    datei: 'frontanbau.html', nav: 'Frontanbau', titel: 'Frontanbau-Geräte', kicker: 'Frontanbau',
+    kurz: 'STAR CRACKER und MAXXIMUS-Walzen für den Frontanbau.',
+    hero: 'IMG_9038',
+    trenner: ['IMG_9020', 'Für den Frontanbau gebaut.'],
+    bildgruppen: [
+      ['STAR CRACKER', 'Das agroXX Frontanbaugerät STAR CRACKER mit Sternringen und Dreipunktanbau.', ['IMG_9038', 'IMG_9000', 'IMG_9001', 'IMG_9011', 'IMG_9019', 'IMG_9020', 'IMG_9024', 'IMG_9034', 'IMG_9037', 'IMG_9046', 'IMG_9050']],
+      ['MAXXIMUS Frontwalze', 'Die agroXX-Walze MAXXIMUS für den Frontanbau, mit Dreipunktanbau und Stützfüßen.', ['IMG_0250', 'IMG_0209', 'IMG_0212', 'IMG_0216', 'IMG_0218', 'IMG_0221', 'IMG_0222', 'IMG_0238', 'IMG_0239', 'IMG_0242', 'IMG_0243', 'IMG_0258']],
+    ],
+    lead: 'Zur agroXX-Linie gehören Geräte für den Frontanbau: der STAR CRACKER und die MAXXIMUS-Walze. Beide werden vorne am Schlepper angebaut.',
+    zahlen: [],
+    punkte: [
+      ['STAR CRACKER', 'agroXX Frontanbaugerät mit Sternringen'],
+      ['MAXXIMUS', 'agroXX Cambridge-Frontpacker mit Lenkbock und 525-mm-Ringen'],
+      ['Frontpacker 6,0 m', 'agroXX FRONTPACKER in 6,0 m Arbeitsbreite'],
+    ],
+    galerie: [],
+    gruppen: [['MAXXIMUS und FRONTPACKER', 'agroXX Frontpacker für den Frontanbau.', /MAXXIMUS|FRONTPACKER|Frontpacker/i]], tabelleFilter: 'Walzen & Packer',
+    videos: 'frontanbau',
+  },
+  {
     datei: 'pfluege.html', nav: 'ESCUDERO', titel: 'ESCUDERO Ecologic Onland Schälpflüge', kicker: 'Schälpflüge', exklusiv: true,
+    youtube: [['https://youtu.be/dHTcP3nwmNY', 'Escudero Ecologic Onland-Pflug im Einsatz (YouTube)'], ['https://www.youtube.com/watch?v=7fUyuvBVwco', 'Weiteres Video zum Pflug (YouTube)']],
+    trenner: ['4995195-28536732', 'In Deutschland exklusiv über agroXX.'],
     kurz: 'Ecologic Onland Dreh-Schälpflüge mit 6 bis 10 Scharen.',
     hero: '4995195-28536746',
     lead: 'Die ESCUDERO Ecologic Onland Dreh-Schälpflüge pflügen in der Furche und schonen so den Boden. Erhältlich mit 6 bis 10 Scharen, mit Steinsicherung und zum Teil hydropneumatisch abgesichert.',
@@ -142,16 +214,18 @@ const SEITEN = [
   },
 ];
 
-const REIHE = ['grubber.html', 'kurzscheibeneggen.html', 'tiefenlockerer.html', 'pfluege.html', 'walzen.html', 'programm.html'];
+const REIHE = ['grubber.html', 'kurzscheibeneggen.html', 'tiefenlockerer.html', 'frontanbau.html', 'pfluege.html', 'walzen.html', 'programm.html'];
 SEITEN.sort((a, b) => REIHE.indexOf(a.datei) - REIHE.indexOf(b.datei));
 
+// [Foto, Überschrift, Zeile darunter, Seite]
 const HERO_FOLIEN = [
-  ['8870254-65368714', 'TRIPLE-X Mulchgrubber', 'grubber.html'],
-  ['8335292-57833131', 'AVATERRA Kurzscheibeneggen', 'kurzscheibeneggen.html'],
-  ['8428162-59086186', 'Quivogne Cambridge-Walzen', 'walzen.html'],
-  ['8870254-65368725', 'Mulchgrubber TRIPLE-X im Einsatz', 'grubber.html'],
-  ['8876326-65446967', 'NITRO-X Tiefenlockerer', 'tiefenlockerer.html'],
-  ['4995195-28536746', 'ESCUDERO Ecologic Onland Schälpflug', 'pfluege.html'],
+  ['IMG_6063', 'TRIPLE-X Mulchgrubber', 'Intensive Mischarbeit für große Flächen', 'grubber.html'],
+  ['IMG_5759', 'AVATERRA Kurzscheibeneggen', 'Flach arbeiten, gleichmäßig einmischen', 'kurzscheibeneggen.html'],
+  ['IMG_4407', 'NITRO-X Tiefenlockerer', 'Verdichtungen aufbrechen bis 55 cm', 'tiefenlockerer.html'],
+  ['IMG_9038', 'STAR CRACKER', 'Frontanbau aus der agroXX-Linie', 'frontanbau.html'],
+  ['4995195-28536746', 'ESCUDERO Ecologic Onland', 'In Deutschland exklusiv über agroXX', 'pfluege.html'],
+  ['IMG_7094', 'Quivogne Cambridge-Walzen', 'Rückverfestigung in großer Breite', 'walzen.html'],
+  ['IMG_6096', 'agroXX techniCCenter', 'Bodenbearbeitung aus Ennigerloh', 'grubber.html'],
 ];
 
 // ---------- Bausteine ----------
@@ -218,9 +292,9 @@ function videoBlock(schluessel) {
 
 // ---------- Startseite ----------
 function startseite() {
-  const folien = HERO_FOLIEN.map(([f, t, link], i) => `<div class="folie${i === 0 ? ' aktiv' : ''}" data-link="${link}"><img src="${foto(f, 2000)}" alt="${esc(t)}"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}><div class="folie-text"><p class="kicker">agroXX techniCCenter</p><h2>${esc(t)}</h2><a class="knopf" href="${link}">Mehr erfahren</a></div></div>`).join('\n');
+  const folien = HERO_FOLIEN.map(([f, t, z, link], i) => `<div class="folie${i === 0 ? ' aktiv' : ''}" data-link="${link}"><img src="${foto(f, 2000)}" alt="${esc(t)}"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}><div class="folie-text"><p class="kicker">agroXX techniCCenter</p><h2>${esc(t)}</h2><p class="folie-zeile">${esc(z)}</p><a class="knopf" href="${link}">Mehr erfahren</a></div></div>`).join('\n');
   const heroVideo = fs.existsSync(path.join(WURZEL, 'videos/start.mp4')) ? '<video class="hero-video" src="videos/start.mp4" autoplay muted loop playsinline></video>' : '';
-  const kacheln = SEITEN.map((s) => `<a class="kachel" href="${s.datei}"><img src="${foto(s.galerie[0], 1280)}" alt="${esc(s.titel)}" loading="lazy"><span class="kachel-text">${s.exklusiv ? '<b class="marke-exklusiv">Exklusiv bei agroXX</b>' : ''}<small>${esc(s.kicker)}</small><strong>${esc(s.titel)}</strong><em>${esc(s.kurz)}</em></span></a>`).join('\n');
+  const kacheln = SEITEN.map((s) => `<a class="kachel" href="${s.datei}"><img src="${foto(s.kachel || s.hero, 1280)}" alt="${esc(s.titel)}" loading="lazy"><span class="kachel-text">${s.exklusiv ? '<b class="marke-exklusiv">Exklusiv bei agroXX</b>' : ''}<small>${esc(s.kicker)}</small><strong>${esc(s.titel)}</strong><em>${esc(s.kurz)}</em></span></a>`).join('\n');
   const tri = SEITEN[0];
   return seite({
     datei: 'index.html', aktiv: 'index.html', transparent: true,
@@ -241,7 +315,7 @@ function startseite() {
 <section class="abschnitt" id="start"><div class="wrap schmal">
   <p class="kicker blau">Bodenbearbeitung aus Ennigerloh</p>
   <h1>Maschinen, die im Boden überzeugen.</h1>
-  <p class="gross">TRIPLE-X, AVATERRA, NITRO-X, ESCUDERO und Quivogne: Wir beraten Sie als Händler persönlich, liefern ab Lager und sprechen Ihre Sprache, in elf Sprachen.</p>
+  <p class="gross">Mulchgrubber, Kurzscheibeneggen, Tiefenlockerer und Frontanbau aus der agroXX-Linie, dazu die Onland-Schälpflüge von ESCUDERO und das Cambridge-Walzenprogramm von Quivogne. Wir beraten Sie als Händler persönlich und sprechen Ihre Sprache, in elf Sprachen.</p>
 </div></section>
 
 <section class="kacheln wrap" aria-label="Programm">
@@ -249,7 +323,7 @@ ${kacheln}
 </section>
 
 <section class="schwerpunkt"><div class="wrap schwer-grid">
-  <img src="${foto(tri.galerie[2], 1280)}" alt="Mulchgrubber TRIPLE-X im Feld" loading="lazy">
+  <img src="${foto('IMG_6071', 1600)}" alt="Mulchgrubber TRIPLE-X" loading="lazy">
   <div>
     <p class="kicker blau">Unser Schwerpunkt</p>
     <h2>TRIPLE-X Mulchgrubber</h2>
@@ -257,6 +331,18 @@ ${kacheln}
     <ul class="zahlen">${tri.zahlen.map(([z, b]) => `<li><strong>${esc(z)}</strong><span>${esc(b)}</span></li>`).join('')}</ul>
     <a class="knopf knopf-blau" href="grubber.html">Alle Details zum TRIPLE-X</a>
   </div>
+</div></section>
+
+<section class="vollbild"><img src="${foto('IMG_5684', 2000)}" alt="AVATERRA Kurzscheibenegge mit ausgeklappten Walzen" loading="lazy"><div class="wrap"><p class="vollbild-text">Aus Ennigerloh für Ihren Boden.</p></div></section>
+
+<section class="schwerpunkt exklusiv-block"><div class="wrap schwer-grid umgekehrt">
+  <div>
+    <p class="kicker blau">Exklusiv bei agroXX</p>
+    <h2>ESCUDERO Ecologic Onland Schälpflüge</h2>
+    <p>Die Ecologic Onland Dreh-Schälpflüge von ESCUDERO sind in Deutschland exklusiv über agroXX erhältlich. Sie pflügen in der Furche und schonen so den Boden.</p>
+    <a class="knopf knopf-blau" href="pfluege.html">Zu den Schälpflügen</a>
+  </div>
+  <img src="${foto('4995195-28536732', 1600)}" alt="ESCUDERO Ecologic Onland Schälpflug" loading="lazy">
 </div></section>
 
 <section class="abschnitt"><div class="wrap schmal">
@@ -271,6 +357,15 @@ ${kontaktBand}`,
 }
 
 // ---------- Produktseiten ----------
+// Bildgruppe: Text links, Foto-Mosaik rechts (abwechselnd), großes Foto zuerst
+function bildgruppe(s, titel, text, fotos, nr) {
+  return `<section class="abschnitt bildgruppe${nr % 2 ? '' : ' hell'}"><div class="wrap bg-grid${nr % 2 ? '' : ' umgekehrt'}">
+  <div class="bg-text"><p class="kicker blau">${esc(s.kicker)}</p><h2>${esc(titel)}</h2><p>${esc(text)}</p></div>
+  <div class="mosaik">${fotos.map((f, i) => `<a href="${gross(f)}" data-gross><img src="${foto(f, i === 0 ? 1400 : 900)}" alt="${esc(titel)}, Bild ${i + 1}" loading="lazy"></a>`).join('')}</div>
+</div></section>`;
+}
+const bildgruppenHtml = (s) => s.bildgruppen.map(([t, x, f], i) => bildgruppe(s, t, x, f, i)).join('\n');
+
 function produktseite(s) {
   const katListe = [].concat(s.tabelleFilter); const alle = katListe.flatMap((k) => modelle(k)); const rest = new Set(alle);
   const gruppenHtml = s.gruppen.map(([n, t, re]) => { const l = alle.filter((m) => re.test(m.titel)); l.forEach((m) => rest.delete(m)); return l.length ? `<div class="untergruppe"><h3>${esc(n)}</h3><p>${esc(t)}</p>${tabelle(l)}</div>` : ''; }).join('');
@@ -287,9 +382,14 @@ ${s.zahlen.length ? `<div class="wrap"><ul class="zahlenband">${s.zahlen.map(([z
 
 <section class="abschnitt hell"><div class="wrap"><h2>Ausstattung</h2><dl class="punkte-liste">${s.punkte.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div></section>
 
-<section class="abschnitt"><div class="wrap"><h2>Bilder</h2><div class="galerie">${s.galerie.map((f, i) => `<a href="${foto(f, 1600)}" data-gross><img src="${foto(f, 1280)}" alt="${esc(s.titel)}, Bild ${i + 1}" loading="lazy"></a>`).join('')}</div></div></section>
+${s.bildgruppen ? bildgruppenHtml(s) : `<section class="abschnitt"><div class="wrap"><h2>Bilder</h2><div class="galerie">${s.galerie.map((f, i) => `<a href="${foto(f, 1600)}" data-gross><img src="${foto(f, 1280)}" alt="${esc(s.titel)}, Bild ${i + 1}" loading="lazy"></a>`).join('')}</div></div></section>`}
+
+${s.trenner ? `<section class="vollbild"><img src="${foto(s.trenner[0], 2000)}" alt="" loading="lazy"><div class="wrap"><p class="vollbild-text">${esc(s.trenner[1])}</p></div></section>` : ''}
+
+${s.werkzeuge ? bildgruppe(s, s.werkzeuge[0], s.werkzeuge[1], s.werkzeuge[2], 1) : ''}
 
 ${videoBlock(s.videos)}
+${s.youtube ? `<section class="abschnitt"><div class="wrap schmal"><h2>Weitere Videos</h2><ul class="linkliste">${s.youtube.map(([u, t]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('')}</ul><p class="klein">Diese Links führen zu YouTube. Erst beim Anklicken werden Daten an YouTube übertragen.</p></div></section>` : ''}
 ${tab ? `<section class="abschnitt hell"><div class="wrap"><h2>Baugrößen und Ausführungen</h2>${tab}<p class="klein">Angaben ohne Gewähr. Aktuelle Verfügbarkeit und Preise erfragen Sie bitte direkt bei uns.</p></div></section>` : ''}
 
 ${kontaktBand}`,
