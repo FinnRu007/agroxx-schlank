@@ -1,0 +1,7 @@
+{
+  "name": "agroxx-schlank",
+  "private": true,
+  "type": "module",
+  "scripts": { "bauen": "node _quelle/bauen.mjs" },
+  "dependencies": { "sharp": "^0.35.5" }
+}
