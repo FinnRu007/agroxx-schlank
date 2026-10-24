@@ -6,7 +6,7 @@ import sharp from 'sharp';
 
 const WURZEL = path.resolve(import.meta.dirname, '..');
 const QUELLE = path.resolve(WURZEL, '../agroxx-website');
-const LIVE = false; // true = für Google freigeben (noindex weg, robots.txt erlaubt alles)
+const LIVE = true; // true = für Google freigeben (noindex weg, robots.txt erlaubt alles)
 
 const FIRMA = { name: 'agroXX techniCCenter', inhaber: 'Thomas Schalkamp', strasse: 'Büttrup 13', ort: '59320 Ennigerloh', tel: '+49 170 7324661', telLink: '+491707324661', mail: 'info@agroxx.eu', traktorpool: 'https://www.traktorpool.de/agroxx/' };
 const FIRMA_JSON = JSON.parse(fs.readFileSync(path.join(QUELLE, 'daten/firma.json'), 'utf8'));
